@@ -1331,7 +1331,7 @@ func (s *Service) selectValidTorrent(
 			bestDataVerified = dataVerified
 			return
 		}
-		if shouldReplaceBest(pieceSize, bestPiece, constraints) {
+		if shouldReplaceBest(dataVerified, bestDataVerified, pieceSize, bestPiece, constraints) {
 			bestHash = hash
 			bestPath = path
 			bestData = data
@@ -1788,7 +1788,15 @@ func preferredPieceLabel(pieceSize int64, constraints pieceConstraints) string {
 	return ""
 }
 
-func shouldReplaceBest(pieceSize int64, bestPiece int64, constraints pieceConstraints) bool {
+// shouldReplaceBest reports whether a reusable candidate should replace the
+// current best selection. A data-verified candidate (ContentPath matching the
+// selected source folder) always outranks a non-verified one; piece-size
+// constraints only break ties between candidates of the same verification
+// status.
+func shouldReplaceBest(dataVerified bool, bestVerified bool, pieceSize int64, bestPiece int64, constraints pieceConstraints) bool {
+	if dataVerified != bestVerified {
+		return dataVerified
+	}
 	if bestPiece == 0 {
 		return true
 	}

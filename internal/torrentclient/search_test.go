@@ -1651,3 +1651,90 @@ func TestCollectTrackerURLsStableDeduplicates(t *testing.T) {
 		t.Fatalf("tracker URLs = %#v, want %#v", got, want)
 	}
 }
+
+func TestShouldReplaceBestPrefersDataVerified(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		dataVerified bool
+		bestVerified bool
+		pieceSize    int64
+		bestPiece    int64
+		constraints  pieceConstraints
+		want         bool
+	}{
+		{
+			name:         "verified beats unverified despite worse piece size",
+			dataVerified: true,
+			bestVerified: false,
+			pieceSize:    32 * 1024 * 1024,
+			bestPiece:    1024,
+			constraints:  pieceConstraints{label: "16MiB", preferMax16: true},
+			want:         true,
+		},
+		{
+			name:         "unverified never replaces verified despite better piece size",
+			dataVerified: false,
+			bestVerified: true,
+			pieceSize:    1024,
+			bestPiece:    32 * 1024 * 1024,
+			constraints:  pieceConstraints{label: "16MiB", preferMax16: true},
+			want:         false,
+		},
+		{
+			name:         "no constraints verified beats unverified",
+			dataVerified: true,
+			bestVerified: false,
+			pieceSize:    32 * 1024 * 1024,
+			bestPiece:    1024,
+			want:         true,
+		},
+		{
+			name:         "no constraints unverified never replaces verified",
+			dataVerified: false,
+			bestVerified: true,
+			pieceSize:    1024,
+			bestPiece:    32 * 1024 * 1024,
+			want:         false,
+		},
+		{
+			name:         "same status unverified falls back to piece size",
+			dataVerified: false,
+			bestVerified: false,
+			pieceSize:    1024,
+			bestPiece:    32 * 1024 * 1024,
+			constraints:  pieceConstraints{label: "16MiB", preferMax16: true},
+			want:         true,
+		},
+		{
+			name:         "same status verified falls back to piece size",
+			dataVerified: true,
+			bestVerified: true,
+			pieceSize:    32 * 1024 * 1024,
+			bestPiece:    1024,
+			constraints:  pieceConstraints{label: "16MiB", preferMax16: true},
+			want:         false,
+		},
+		{
+			name:         "same status both verified first candidate wins without constraints",
+			dataVerified: true,
+			bestVerified: true,
+			pieceSize:    32 * 1024 * 1024,
+			bestPiece:    16 * 1024 * 1024,
+			want:         false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := shouldReplaceBest(test.dataVerified, test.bestVerified, test.pieceSize, test.bestPiece, test.constraints)
+			if got != test.want {
+				t.Fatalf("shouldReplaceBest(verified=%t, bestVerified=%t, piece=%d, bestPiece=%d) = %t, want %t",
+					test.dataVerified, test.bestVerified, test.pieceSize, test.bestPiece, got, test.want)
+			}
+		})
+	}
+}
